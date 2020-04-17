@@ -1,25 +1,20 @@
 [package]
-name = "schemafy"
+name = "schemafy-gen"
 version = "0.5.0" # VERSION_TAG
-authors = ["Markus Westerlind <marwes91@gmail.com>"]
+authors = ["Markus Westerlind <marwes91@gmail.com>", "Guillaume Balaine <igosuki.github@gmail.com>"]
 edition = "2018"
 
-description = "Generates serializeable Rust types from a json schema"
+description = "Command line fork of https://github.com/Marwes/schemafy. Generates serializeable Rust types from a json schema"
 license = "MIT"
 
-repository = "https://github.com/Marwes/schemafy"
-documentation = "https://docs.rs/schemafy"
+repository = "https://github.com/Igosuki/schemafy"
+documentation = "https://docs.rs/schemafy-gen"
 
 default-run = "main"
-
 
 [[bin]]
 name = "main"
 path = "src/main.rs"
-
-[[bin]]
-name = "generate-tests"
-path = "src/generate_tests.rs"
 
 [workspace]
 

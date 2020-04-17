@@ -452,7 +452,7 @@ impl<'r> Expander<'r> {
                 }
                 SimpleTypes::Array => {
                     let item_type = typ.items.get(0).map_or("serde_json::Value".into(), |item| {
-                        self.current_type = format!("{}Item", self.current_type);
+                        self.current_type = format!("{}", self.current_type);
                         self.expand_type_(item).typ
                     });
                     format!("Vec<{}>", item_type).into()

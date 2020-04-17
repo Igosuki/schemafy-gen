@@ -27,6 +27,6 @@ fn main() {
     let schema_file = matches.value_of("schema").unwrap_or("src/schema.json");
     let output_file = matches.value_of("output").unwrap_or("src/schema.rs");
 
-    schemafy::generate_schema(schema_file.to_string(), output_file.to_string());
+    schemafy_gen::generate_schema(schema_file.to_string(), output_file.to_string());
 }
 
