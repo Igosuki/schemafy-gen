@@ -1,2 +1,4 @@
 target
 Cargo.lock
+src/schema_gen.rs
+.idea

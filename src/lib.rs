@@ -72,6 +72,7 @@ use serde_json::Value;
 use crate::schema::{Schema, SimpleTypes};
 
 use proc_macro2::{Span, TokenStream};
+use std::process::Command;
 
 fn replace_invalid_identifier_chars(s: &str) -> String {
     s.replace(|c: char| !c.is_alphanumeric() && c != '_', "_")
@@ -441,6 +442,9 @@ impl<'r> Expander<'r> {
 
     pub fn expand_definitions(&mut self, schema: &Schema) {
         for (name, def) in &schema.definitions {
+            println!("{}", name);
+            let name = name.split(".").last().unwrap();
+            println!("{}", name);
             let type_decl = self.expand_schema(name, def);
             let definition_tokens = match def.description {
                 Some(ref comment) => {
@@ -474,6 +478,7 @@ impl<'r> Expander<'r> {
             !fields.is_empty() || schema.additional_properties == Some(Value::Bool(false));
         let type_decl = if is_struct {
             if default {
+                println!("Has default : {}", name);
                 quote! {
                     #[derive(Clone, PartialEq, Debug, Default, Deserialize, Serialize)]
                     pub struct #name {
@@ -666,7 +671,6 @@ impl<'a> GenerateBuilder<'a> {
 ///     Ok(())
 /// }
 /// ```
-#[proc_macro]
 pub fn schemafy(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
     GenerateBuilder {
         ..GenerateBuilder::default()
@@ -676,7 +680,6 @@ pub fn schemafy(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
 }
 
 #[doc(hidden)]
-#[proc_macro]
 pub fn regenerate(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
     use std::process::Command;
 
@@ -687,12 +690,33 @@ pub fn regenerate(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     {
         let out = tokens.to_string();
-        std::fs::write("src/schema.rs", &out).unwrap();
+        std::fs::write("src/schema_gen.rs", &out).unwrap();
         Command::new("rustfmt")
-            .arg("src/schema.rs")
+            .arg("src/schema_gen.rs")
             .output()
             .unwrap();
     }
 
     tokens
+}
+
+pub fn generate_schema(input_file: String, output_file: String) {
+    let json = std::fs::read_to_string(&input_file)
+        .unwrap_or_else(|err| panic!("Unable to read `{}`: {}", input_file, err));
+    let schema = serde_json::from_str(&json).unwrap_or_else(|err| panic!("{}", err));
+    let mut expander = Expander::new(
+        Some("Schema"),
+        "::schemafy_core::",
+        &schema,
+    );
+    let tokens : TokenStream = expander.expand(&schema).into();
+
+    {
+        let out = tokens.to_string();
+        std::fs::write(&output_file, &out).unwrap();
+        Command::new("rustfmt")
+            .arg(&output_file)
+            .output()
+            .unwrap();
+    }
 }
