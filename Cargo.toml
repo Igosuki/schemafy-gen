@@ -7,7 +7,7 @@ edition = "2018"
 description = "Command line fork of https://github.com/Marwes/schemafy. Generates serializeable Rust types from a json schema"
 license = "MIT"
 
-repository = "https://github.com/Igosuki/schemafy"
+repository = "https://github.com/Igosuki/schemafy-gen"
 documentation = "https://docs.rs/schemafy-gen"
 
 default-run = "main"
