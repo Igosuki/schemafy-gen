@@ -48,7 +48,8 @@
 //!     Ok(())
 //! }
 //! ```
-
+#[macro_use]
+extern crate smart_default;
 #[macro_use]
 extern crate serde_derive;
 use serde_json;
@@ -224,9 +225,16 @@ impl<'a, 'r> FieldExpander<'a, 'r> {
                     self.default = false;
                 }
                 let typ = field_type.typ.parse::<TokenStream>().unwrap();
-
                 let default = if field_type.default {
-                    Some(quote! { #[serde(default)] })
+                    if let Some(default_value) = field_type.default_value {
+                        let varname = default_value.to_string().parse::<TokenStream>().unwrap();
+                        Some(quote! {
+                            #[default = #varname]
+                            #[serde(default)]
+                        })
+                    } else {
+                        Some(quote! { #[serde(default)] })
+                    }
                 } else {
                     None
                 };
@@ -269,6 +277,7 @@ struct FieldType {
     typ: String,
     attributes: Vec<String>,
     default: bool,
+    default_value: Option<serde_json::Value>
 }
 
 impl<S> From<S> for FieldType
@@ -280,6 +289,18 @@ where
             typ: s.into(),
             attributes: Vec::new(),
             default: false,
+            default_value: None
+        }
+    }
+}
+
+impl FieldType {
+    fn with_default(s: &str, default_value: Option<serde_json::Value>) -> FieldType {
+        FieldType {
+            typ: s.to_string(),
+            attributes: Vec::new(),
+            default: true,
+            default_value,
         }
     }
 }
@@ -367,6 +388,7 @@ impl<'r> Expander<'r> {
                                 self.schemafy_path
                             )],
                             default: true,
+                            default_value: None
                         };
                     }
                 }
@@ -381,6 +403,7 @@ impl<'r> Expander<'r> {
                     typ: format!("Option<{}>", self.expand_type_(&ty).typ),
                     attributes: vec![],
                     default: true,
+                    default_value: None
                 }
             } else {
                 "serde_json::Value".into()
@@ -388,15 +411,15 @@ impl<'r> Expander<'r> {
         } else if typ.type_.len() == 1 {
             match typ.type_[0] {
                 SimpleTypes::String => {
-                    if typ.enum_.as_ref().map_or(false, |e| e.is_empty()) {
-                        "serde_json::Value".into()
+                    FieldType::with_default(if typ.enum_.as_ref().map_or(false, |e| e.is_empty()) {
+                        "serde_json::Value"
                     } else {
-                        "String".into()
-                    }
+                        "String"
+                    }, typ.clone().default)
                 }
-                SimpleTypes::Integer => "i64".into(),
-                SimpleTypes::Boolean => "bool".into(),
-                SimpleTypes::Number => "f64".into(),
+                SimpleTypes::Integer => FieldType::with_default("i64", typ.clone().default),
+                SimpleTypes::Boolean => FieldType::with_default("bool", typ.clone().default),
+                SimpleTypes::Number => FieldType::with_default("f64", typ.clone().default),
                 // Handle objects defined inline
                 SimpleTypes::Object
                     if !typ.properties.is_empty()
@@ -424,6 +447,7 @@ impl<'r> Expander<'r> {
                         typ: result,
                         attributes: Vec::new(),
                         default: typ.default == Some(Value::Object(Default::default())),
+                        default_value: None
                     }
                 }
                 SimpleTypes::Array => {
@@ -442,9 +466,7 @@ impl<'r> Expander<'r> {
 
     pub fn expand_definitions(&mut self, schema: &Schema) {
         for (name, def) in &schema.definitions {
-            println!("{}", name);
             let name = name.split(".").last().unwrap();
-            println!("{}", name);
             let type_decl = self.expand_schema(name, def);
             let definition_tokens = match def.description {
                 Some(ref comment) => {
@@ -478,16 +500,15 @@ impl<'r> Expander<'r> {
             !fields.is_empty() || schema.additional_properties == Some(Value::Bool(false));
         let type_decl = if is_struct {
             if default {
-                println!("Has default : {}", name);
                 quote! {
-                    #[derive(Clone, PartialEq, Debug, Default, Deserialize, Serialize)]
+                    #[derive(SmartDefault, Clone, PartialEq, Debug, Default, Deserialize, Serialize)]
                     pub struct #name {
                         #(#fields),*
                     }
                 }
             } else {
                 quote! {
-                    #[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
+                    #[derive(SmartDefault, Clone, PartialEq, Debug, Deserialize, Serialize)]
                     pub struct #name {
                         #(#fields),*
                     }
@@ -718,5 +739,30 @@ pub fn generate_schema(input_file: String, output_file: String) {
             .arg(&output_file)
             .output()
             .unwrap();
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use serde::{Serialize, Deserialize};
+    use smart_default::SmartDefault;
+
+    fn default_string() -> String {
+        "false".to_string()
+    }
+
+    #[derive(SmartDefault, Clone, PartialEq, Debug, Deserialize, Serialize)]
+    pub struct Test {
+        #[default = false]
+        #[serde(default)]
+        hello: bool
+    }
+    #[test]
+    fn test_serde_default() {
+        let json_str = r"
+            {}
+        ";
+        let test: Test = serde_json::from_str(json_str).unwrap();
+        assert_eq!(test.hello, false);
     }
 }
